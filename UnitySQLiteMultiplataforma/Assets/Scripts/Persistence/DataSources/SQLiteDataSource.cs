@@ -16,8 +16,17 @@ public class SQLiteDataSource : MonoBehaviour, ISQLiteConnectionProvider
     [SerializeField]
     protected bool copyDatabase;
 
+    public static Action registerInitialLoad;//delegate void system Action
+
+    //o const nao pode ser alterado demtro do codigo
+    private const int codeVersion = 1; 
+    private const string tagVersion = "DB_VERSION"; 
+
     protected void Awake()
     {
+        var game = FindObjectOfType<GamesCodeDataSource>();
+        registerInitialLoad += game.AwakeDB;
+
         print("SQLiteDataSource Awake");
         if (string.IsNullOrEmpty(this.databaseName))//se esse nome for null ou vazio
         {
@@ -33,7 +42,41 @@ public class SQLiteDataSource : MonoBehaviour, ISQLiteConnectionProvider
         {
             //CreateDatabaseFileIfNotExists();
         }
-        
+
+        var savedVersion = PlayerPrefs.GetInt(tagVersion, -1);
+        if(codeVersion > savedVersion)//verifica se precisa migrar
+        {
+            if(savedVersion == -1)//se rodar pela primeira vez
+            {
+                savedVersion = codeVersion;
+            }
+
+            for(var v = savedVersion + 1; v <= codeVersion; v++)
+            {
+                using(var connection = Connection)
+                {
+                    connection.Open();
+                    using(var command = connection.CreateCommand())
+                    {
+                        try
+                        {
+                            var scripts = SQLMigration.versionScripts[v];
+                            for(var s = 0; s <scripts.Count; s++)
+                            {
+                                command.CommandText = scripts[s];
+                                command.ExecuteNonQuery();
+                            }
+                        }
+                        catch //se nao tiver nenhuma chave
+                        {
+                        }
+                    }
+                }
+            }
+
+            PlayerPrefs.SetInt(tagVersion, codeVersion);
+        }
+
     }
 
     //recurso para organizar
@@ -43,14 +86,16 @@ public class SQLiteDataSource : MonoBehaviour, ISQLiteConnectionProvider
         this.databasePath = Path.Combine(Application.persistentDataPath, this.databaseName);
 
         if (File.Exists(this.databasePath))//se existe nao precisa fazer nada
+        {
+            registerInitialLoad?.Invoke();
             return;
-
+        }
         var isAndroid = false; // se ja foi copiada pelo android
         var originalDatabasePath = string.Empty;//determinar a origem do arquivo, inicia vazia, 
 
-                    //windownPhone, aplicativo uwp
-#if UNITY_EDITOR || UNITY_WP8 || UNITY_WINRT
-        
+        //windownPhone, aplicativo uwp
+#if UNITY_EDITOR || UNITY_WP8 || UNITY_WINRT || UNITY_STANDALONE_WIN || UNITY_STANDALONE_LINUX
+
         originalDatabasePath = Path.Combine(Application.streamingAssetsPath, this.databaseName);
 
 #elif UNITY_STANDALONE_OSX
@@ -64,13 +109,16 @@ public class SQLiteDataSource : MonoBehaviour, ISQLiteConnectionProvider
 #elif UNITY_ANDROID
 
        isAndroid = true;
-       originalDatabasePath =  "jar:file://" + Application.dataPath + "!/assets" + this.DatabaseName;
+       originalDatabasePath =  "jar:file://" + Application.dataPath + "!/assets/" + this.DatabaseName;
        StartCoroutine(GetInternalFileAndroid(originalDatabasePath));
 
 #endif
 
         if (!isAndroid)
+        {
             File.Copy(originalDatabasePath, this.databasePath);
+            registerInitialLoad?.Invoke();
+        }
     }
 
     private void CreateDatabaseFileIfNotExists()//criar o bd se ele nao existir ainda
@@ -98,6 +146,9 @@ public class SQLiteDataSource : MonoBehaviour, ISQLiteConnectionProvider
         {                       //onde vai , o que vai receber
             File.WriteAllBytes(this.databasePath, request.downloadHandler.data);
             Debug.Log("File copied!");
+
+            //if (registerInitialLoad != null)
+            registerInitialLoad?.Invoke();
         }
     }
     #endregion

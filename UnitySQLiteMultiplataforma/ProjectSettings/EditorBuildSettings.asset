@@ -4,5 +4,8 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Cartoon Castle Building Kit/Scenes/Example Scene 7.unity
+    guid: 44efe4177ae573c44a014ece472d1cab
   m_configObjects: {}

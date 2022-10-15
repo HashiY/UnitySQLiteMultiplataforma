@@ -28,7 +28,6 @@ public class GamesCodeDataSource : SQLiteDataSource
             return instance;
         }
     }
-
     protected void Awake()
     {
         this.databaseName = "GamesCode.db";
@@ -46,5 +45,9 @@ public class GamesCodeDataSource : SQLiteDataSource
         }
 
         print("Awake GamesCode");
+    }
+    public void AwakeDB()
+    {
+        
     }
 }
